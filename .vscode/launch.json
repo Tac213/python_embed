@@ -9,7 +9,15 @@
       "args": [],
       "cwd": "${workspaceFolder}",
       "internalConsoleOptions": "neverOpen",
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "env": {
+        "VIRTUAL_ENV": "${workspaceFolder}/.venv"
+      },
+      "windows": {
+        "env": {
+          "VIRTUAL_ENV": "${workspaceFolder}\\.venv"
+        }
+      }
     }
   ]
 }
