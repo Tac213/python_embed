@@ -1,8 +1,7 @@
 #include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <pybind11/embed.h> // everything needed for embedding
-
-namespace py = pybind11;
 
 int main(int argc, char** argv)
 {
@@ -29,13 +28,25 @@ int main(int argc, char** argv)
         if (PyStatus_Exception(status))
         {
             PyConfig_Clear(&config);
-            return status.exitcode;
+            throw std::runtime_error(PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to set venv python executable.");
         }
     }
-    py::scoped_interpreter guard{&config, argc, argv}; // start the interpreter and keep it alive
+    status = PyConfig_SetBytesArgv(&config, argc, const_cast<char* const*>(argv));
+    if (PyStatus_Exception(status))
+    {
+        PyConfig_Clear(&config);
+        throw std::runtime_error(PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to set sys.argv.");
+    }
+    status = Py_InitializeFromConfig(&config);
+    if (PyStatus_Exception(status))
+    {
+        PyConfig_Clear(&config);
+        throw std::runtime_error(PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to initialize CPython from config.");
+    }
 
-    py::print("Hello, World!"); // use the Python API
-    py::module_::import("test");
+    PyConfig_Clear(&config);
 
-    return 0;
+    int exitcode = Py_RunMain();
+
+    return exitcode;
 }
