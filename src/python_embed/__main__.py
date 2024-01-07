@@ -2,12 +2,11 @@
 # author: Tac
 # contact: cookiezhx@163.com
 
-import sys
-import requests
+import PySide6
+import shiboken6
 
 
 if __name__ == "__main__":
     print("main module")
-    print(requests)
-    print(sys.argv)
-    print(sys.path)
+    print(shiboken6)
+    print(PySide6.__version__)

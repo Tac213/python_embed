@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
-#include <pybind11/embed.h> // everything needed for embedding
+#include <Python.h>
 
 int main(int argc, char** argv)
 {
