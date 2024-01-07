@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.4...3.18)
 project(python_embed)
 
+set(CMAKE_CXX_STANDARD 20)
+
+option(NEED_CONSOLE "Whether to build a console application." OFF)
+
 if(${WIN32})
   set(PYTHON_EXECUTABLE
     ${CMAKE_SOURCE_DIR}/.venv/Scripts/python.exe
@@ -45,6 +49,13 @@ PRIVATE
   ${PYTHON_INCLUDE_DIR}
 )
 
+if(NEED_CONSOLE)
+  target_compile_definitions(${PROJECT_NAME}
+  PRIVATE
+    NEED_CONSOLE
+  )
+endif()
+
 # Find and link to the python library.
 list(GET PYTHON_LINKING_DATA 0 PYTHON_LIBDIR)
 list(GET PYTHON_LINKING_DATA 1 PYTHON_LIB_BASENAME)
@@ -56,7 +67,7 @@ PRIVATE
 )
 
 if(${WIN32})
-  set(PYTHON_VERSIONS_LIST 3 311 312)
+  set(PYTHON_VERSIONS_LIST 3 310 311 312)
   set(PYTHON_ADDITIONAL_LINK_FLAGS "")
   foreach(VER ${PYTHON_VERSIONS_LIST})
     set(PYTHON_ADDITIONAL_LINK_FLAGS
@@ -65,4 +76,7 @@ if(${WIN32})
         "${PYTHON_ADDITIONAL_LINK_FLAGS} /NODEFAULTLIB:\"python${VER}.lib\"")
   endforeach()
   set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "${PYTHON_ADDITIONAL_LINK_FLAGS}")
+  if(NOT NEED_CONSOLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE 1)
+  endif()
 endif()

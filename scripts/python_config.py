@@ -1,5 +1,5 @@
 """
-Scripts for cmake to link python
+Script for cmake to link python
 """
 
 import sys

@@ -2,11 +2,12 @@
 # author: Tac
 # contact: cookiezhx@163.com
 
-import PySide6
-import shiboken6
+import sys
+from PySide6 import QtWidgets
 
 
 if __name__ == "__main__":
-    print("main module")
-    print(shiboken6)
-    print(PySide6.__version__)
+    app = QtWidgets.QApplication(sys.argv)
+    label = QtWidgets.QLabel("Hello World Hey Hey")
+    label.show()
+    sys.exit(app.exec())
