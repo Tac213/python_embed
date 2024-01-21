@@ -1,50 +1,54 @@
 # python_embed
 
-## 开发
+## Development
 
 ```bash
-# 在python_embed根目录下创建venv, 名字必须叫.venv
+# create virtual env, the name should be ".venv"
 python -m venv .venv
-# 激活venv
+# activate venv
 .venv/Scripts/activate.bat
-# editable装依赖
+# install packages with editable project sources
 pip3 install -e .[dev]
 
-# 开启VS Code, Configure之后F5就行
+# Open current folder with VSCode
+# Run `CMake: Configure` command
+# Then press `F5`, the demo PySide application will be launched
 
-# 下面是Visual Studio的编译示例
-# 先Configure生成build/VisualStudio/python_embed.sln
+# You can also build with Visual Studio
+# First, configure to generate: build/VisualStudio/python_embed.sln
 cmake -S . -B build/VisualStudio -G "Visual Studio 17 2022"
-# 进入build目录
+# Change directory to build folder
 cd build/VisualStudio
-# 编译, 也可以打开python_embed.sln手动编译，但是运行结果会不符合预期，要参考.vscode/launch.json配下运行命令和环境变量
+# Build
 cmake --build .
+# You can also open python_embed.sln with Visual Studio and build inside Visual Studio
+# But the result is not as expected unless you set args and envs correctly (See `.vscode/launch.json` for more information)
 
-# 保持在venv里，运行
+# Keep venv activated, execute the follow command, the demo PySide application will also be launched
 ./Debug/python_embed.exe -m python_embed
 ```
 
-## 打包
+## Freezing
 
-看下 python 版本，下载对应版本的 win64 embeddable package，比如：https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip
+Check your python version，download corresponding win64 embeddable package，such as：https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip
 
-解压这个 zip，把里面的这 4 个东西删掉：
+Unzip the zip，delete the following files：
 
 - python.exe
 - python3.dll
-- python311.dll, 也有可能是 python312.dll 或者 python310.dll 之类的，根据你的 python 版本决定
+- python311.dll, can also be python312.dll or python310.dll, depending on your python version
 - pythonw.exe
 
-编译一个 Release 版本的 python_embed.exe(Debug 的也行)，拷贝到刚才 zip 的解压目录下。
+Build a Release version of python_embed.exe(Debug is also OK), copy it to the forementioned unzip folder.
 
-去.venv 下面找到 PySide6 和 shiboken6 目录，拷贝到刚才 zip 的解压目录下。
+Copy PySide6 and shiboken6 folder under .venv folder, to the forementioned unzip folder.
 
-激活 venv，在 python_embed 源码根目录下执行：
+Activate venv，execute the following command under python_embed folder:
 
 ```bash
-python scripts/generated_source_zip.py python_embed  # 第3个参数是入口模块
+python scripts/generated_source_zip.py python_embed  # The 3rd argument is the name of the entry python module
 ```
 
-执行完成后会生成 src.zip，拷贝到刚才 zip 的解压目录下。
+A src.zip will be generated, copy it to the forementioned unzip folder.
 
-此时在刚才 zip 的解压目录下双击 python_embed.exe，即可正常开启应用。
+Double click python_embed.exe, the demo PySide application will be launched.
