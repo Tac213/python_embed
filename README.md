@@ -30,25 +30,19 @@ cmake --build .
 
 ## Freezing
 
-Check your python version，download corresponding win64 embeddable package，such as：https://www.python.org/ftp/python/3.11.7/python-3.11.7-embed-amd64.zip
-
-Unzip the zip，delete the following files：
-
-- python.exe
-- python3.dll
-- python311.dll, can also be python312.dll or python310.dll, depending on your python version
-- pythonw.exe
-
-Build a Release version of python_embed.exe(Debug is also OK), copy it to the forementioned unzip folder.
-
-Copy PySide6 and shiboken6 folder under .venv folder, to the forementioned unzip folder.
-
-Activate venv，execute the following command under python_embed folder:
-
 ```bash
-python scripts/generated_source_zip.py python_embed  # The 3rd argument is the name of the entry python module
+cmake -S . -B build/Frozen -G "Visual Studio 17 2022" -DNEED_CONSOLE=OFF -DFREEZE_APPLICATION=ON -DCMAKE_BUILD_TYPE:STRING=Release
+cd build/Frozen
+cmake --build . --config Release
 ```
 
-A src.zip will be generated, copy it to the forementioned unzip folder.
+All needed files will be compiled under: `build/Frozen/Release`
 
-Double click python_embed.exe, the demo PySide application will be launched.
+Copy all files under that folder into another folder (let's call it folder A), except these two files：
+
+- python_embed.exp
+- python_embed.lib
+
+Copy PySide6 and shiboken6 folder under .venv folder, to folder A.
+
+Double click python_embed.exe under folder A, the demo PySide application will be launched.

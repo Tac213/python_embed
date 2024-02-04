@@ -1,5 +1,4 @@
 #include <cstdlib>
-#include <filesystem>
 #include <string>
 #if defined(_DEBUG)
 #    undef _DEBUG // https://stackoverflow.com/questions/38860915/lnk2019-error-in-pycaffe-in-debug-mode-for-caffe-for-windows
@@ -7,6 +6,11 @@
 #include <Python.h>
 #if defined(_MSC_VER)
 #    include <Windows.h>
+#endif
+
+#if defined(FREEZE_APPLICATION)
+#    include <filesystem>
+#    include "frozen_modules/frozen_modules.h"
 #endif
 
 #define STR_HELPER(x) #x
@@ -81,29 +85,30 @@ WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nShowCmd) // 
     int    argc = __argc;
     char** argv = __argv;
 #endif
+#if defined(FREEZE_APPLICATION)
+    PyImport_FrozenModules = _PyImport_FrozenModules;
+#endif
     PyStatus status;
 
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
 
-    bool is_dev = false;
-#if defined(_MSC_VER)
+#if !defined(FREEZE_APPLICATION)
+#    if defined(_MSC_VER)
     char*  env_p = nullptr;
     size_t sz    = 0;
     if (_dupenv_s(&env_p, &sz, "VIRTUAL_ENV") == 0 && env_p != nullptr)
-#else
+#    else
     if (const char* env_p = std::getenv("VIRTUAL_ENV"))
-#endif
+#    endif // defined(_MSC_VER)
     {
-        is_dev = true;
-
         std::string python_executable = env_p;
-#if defined(_MSC_VER)
+#    if defined(_MSC_VER)
         python_executable += "\\Scripts\\python.exe";
         free(env_p);
-#else
+#    else
         python_executable += "/bin/python";
-#endif
+#    endif // defined(_MSC_VER
         status = PyConfig_SetBytesString(&config, &config.program_name, python_executable.c_str());
         if (PyStatus_Exception(status))
         {
@@ -112,43 +117,25 @@ WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nShowCmd) // 
             return 1;
         }
     }
-    else
+#else  // FREEZE_APPLICATION
+    config.module_search_paths_set = 1; // sys.path will be: ['']
+
+    std::filesystem::path executable_path(argv[0]);
+    auto                  executable_directory = executable_path.parent_path().wstring();
+
+    config.write_bytecode = 0;
+
+    // In Python3.11, this will not work.
+    // See: https://github.com/python/cpython/issues/106718
+    status = PyConfig_SetString(&config, &config.stdlib_dir, executable_directory.c_str());
+    if (PyStatus_Exception(status))
     {
-        is_dev = false;
-
-        config.module_search_paths_set = 1;
-
-        std::filesystem::path executable_path(argv[0]);
-        auto                  executable_directory = executable_path.parent_path();
-        auto                  standard_lib         = executable_directory / "python" STR(PY_MAJOR_VERSION) STR(PY_MINOR_VERSION) ".zip";
-        auto                  python_src           = executable_directory / "src.zip";
-
-        status = PyWideStringList_Append(&config.module_search_paths,
-                                         python_src.wstring().c_str());
-        if (PyStatus_Exception(status))
-        {
-            PyConfig_Clear(&config);
-            fprintf(stderr, "%s", PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to set sys.path.");
-            return 1;
-        }
-        status = PyWideStringList_Append(&config.module_search_paths,
-                                         standard_lib.wstring().c_str());
-        if (PyStatus_Exception(status))
-        {
-            PyConfig_Clear(&config);
-            fprintf(stderr, "%s", PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to set sys.path.");
-            return 1;
-        }
-        status = PyWideStringList_Append(&config.module_search_paths,
-                                         executable_directory.wstring().c_str());
-        if (PyStatus_Exception(status))
-        {
-            PyConfig_Clear(&config);
-            fprintf(stderr, "%s", PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to set sys.path.");
-            return 1;
-        }
-        config.write_bytecode = 0;
+        PyConfig_Clear(&config);
+        fprintf(stderr, "%s", PyStatus_IsError(status) != 0 ? status.err_msg : "Failed to set sys._stdlib_dir.");
+        return 1;
     }
+#endif // !defined(FREEZE_APPLICATION)
+
     status = PyConfig_SetBytesArgv(&config, argc, const_cast<char* const*>(argv));
     if (PyStatus_Exception(status))
     {
@@ -168,14 +155,49 @@ WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nShowCmd) // 
 
     int exitcode = 0;
 
-    if (is_dev)
+#if !defined(FREEZE_APPLICATION)
+    exitcode = Py_RunMain();
+#else
+    // Set sys._stdlib_dir manually
+    PyObject *sysmodule, *stdlib_dir_value;
+
+    const auto* stdlibdir = executable_directory.c_str();
+
+    sysmodule = PyImport_ImportModule("sys");
+    if (sysmodule == nullptr)
     {
-        exitcode = Py_RunMain();
+        fprintf(stderr, "Could not import sys module\n");
+        PyErr_Print();
+        return 1;
     }
-    else
+    stdlib_dir_value = PyUnicode_FromWideChar(stdlibdir, wcslen(stdlibdir));
+    if (stdlib_dir_value == nullptr)
     {
-        exitcode = pymain_run_module(L"python_embed", 0);
+        fprintf(stderr, "Could not convert directory name to unicode\n");
+        Py_DECREF(sysmodule);
+        PyErr_Print();
+        return 1;
     }
+    if (PyObject_SetAttrString(sysmodule, "_stdlib_dir", stdlib_dir_value) == -1)
+    {
+        fprintf(stderr, "Could not set sys._stdlib_dir\n");
+        Py_DECREF(sysmodule);
+        Py_DECREF(stdlib_dir_value);
+        PyErr_Print();
+        return 1;
+    }
+    Py_DECREF(stdlib_dir_value);
+    // Set sys.frozen
+    if (PyObject_SetAttrString(sysmodule, "frozen", Py_True) == -1)
+    {
+        fprintf(stderr, "Could not set sys.frozen\n");
+        Py_DECREF(sysmodule);
+        PyErr_Print();
+        return 1;
+    }
+    Py_DECREF(sysmodule);
+    exitcode = pymain_run_module(L"__main__", 0);
+#endif // !defined(FREEZE_APPLICATION)
 
     return exitcode;
 }
