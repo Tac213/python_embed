@@ -18,39 +18,49 @@ else()
   )
 endif()
 
-set(ENTRY_MODULE_NAME python_embed)
-set(HIDDEN_IMPORTS "encodings.cp437")
-set(EXCLUDES "test,unittest")
-
-# Get frozen header file names
-execute_process(
-  COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/generate_frozen_modules.py" "--get-frozen-header-file-names" "${ENTRY_MODULE_NAME}"
-  "--hidden-imports=${HIDDEN_IMPORTS}" "--excludes=${EXCLUDES}"
-  OUTPUT_VARIABLE _frozen_headers
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE _resullt
+set(SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
 )
 
-if(${_resullt})
-  message(FATAL_ERROR "Failed to get frozen header file names.")
+if(FREEZE_APPLICATION)
+  set(ENTRY_MODULE_NAME python_embed)
+  set(HIDDEN_IMPORTS "encodings.cp437")
+  set(EXCLUDES "test,unittest")
+
+  # Get frozen header file names
+  execute_process(
+    COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/generate_frozen_modules.py" "--get-frozen-header-file-names" "${ENTRY_MODULE_NAME}"
+    "--hidden-imports=${HIDDEN_IMPORTS}" "--excludes=${EXCLUDES}"
+    OUTPUT_VARIABLE _frozen_headers
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _resullt
+  )
+
+  if(${_resullt})
+    message(FATAL_ERROR "Failed to get frozen header file names.")
+  endif()
+
+  add_custom_command(
+    OUTPUT ${_frozen_headers}
+    COMMAND
+    ${CMAKE_CROSSCOMPILING_EMULATOR} ${PYTHON_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/generate_frozen_modules.py" "--make-freeze" $<TARGET_FILE:_freeze_module>
+    "${ENTRY_MODULE_NAME}" "--hidden-imports=${HIDDEN_IMPORTS}" "--excludes=${EXCLUDES}"
+    DEPENDS
+    _freeze_module
+    WORKING_DIRECTORY
+    ${CMAKE_SOURCE_DIR}
+    COMMENT
+    "Generating frozen module headers"
+  )
+
+  set(SOURCES
+    ${SOURCES}
+    ${_frozen_headers}
+  )
 endif()
 
-add_custom_command(
-  OUTPUT ${_frozen_headers}
-  COMMAND
-  ${CMAKE_CROSSCOMPILING_EMULATOR} ${PYTHON_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/generate_frozen_modules.py" "--make-freeze" $<TARGET_FILE:_freeze_module>
-  "${ENTRY_MODULE_NAME}" "--hidden-imports=${HIDDEN_IMPORTS}" "--excludes=${EXCLUDES}"
-  DEPENDS
-  _freeze_module
-  WORKING_DIRECTORY
-  ${CMAKE_SOURCE_DIR}
-  COMMENT
-  "Generating frozen module headers"
-)
-
 add_executable(${PROJECT_NAME}
-  src/main.cpp
-  ${_frozen_headers}
+  ${SOURCES}
 )
 
 if(NEED_CONSOLE)
