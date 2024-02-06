@@ -20,6 +20,7 @@ dependencies = [
 dev = [
     "pylint",
     "black",
+    "pyinstaller",
 ]
 
 [tool.black]

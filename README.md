@@ -32,17 +32,9 @@ cmake --build .
 
 ```bash
 cmake -S . -B build/Frozen -G "Visual Studio 17 2022" -DNEED_CONSOLE=OFF -DFREEZE_APPLICATION=ON -DCMAKE_BUILD_TYPE:STRING=Release
-cd build/Frozen
-cmake --build . --config Release
+cmake --build build/Frozen --config Release
 ```
 
-All needed files will be compiled under: `build/Frozen/Release`
+All needed files will be deployed under: `frozen`
 
-Copy all files under that folder into another folder (let's call it folder A), except these two files：
-
-- python_embed.exp
-- python_embed.lib
-
-Copy PySide6 and shiboken6 folder under .venv folder, to folder A.
-
-Double click python_embed.exe under folder A, the demo PySide application will be launched.
+If the application doesn't work, try `-DNEED_CONSOLE=ON`, run the application with command line and get useful information from standard output.

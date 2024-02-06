@@ -32,3 +32,4 @@ __pycache__/
 src.zip
 
 src/frozen_modules/
+deployment/

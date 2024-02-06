@@ -7,6 +7,7 @@ import os
 import re
 import types
 import typing
+import enum
 import importlib
 from importlib import machinery, util
 import modulefinder
@@ -67,6 +68,27 @@ class ModuleInfo:
     module: types.ModuleType
     is_package: bool
     origin: str
+
+
+@dataclasses.dataclass
+class ModuleAnalysisInfo:
+    """
+    Data class of module analysis info
+    """
+
+    entry_module_name: str  # A python module name or a signle python_file
+    hidden_imports: list[str]  # hidden import module names
+    excludes: list[str]  # exclude module names
+
+
+class ModuleType(enum.IntFlag):
+    """
+    Module type enum
+    """
+
+    SOURCE_MODULE = enum.auto()
+    BYTECODE_MODULE = enum.auto()
+    EXTENSION_MODULE = enum.auto()
 
 
 def get_list_arg(arg_str: str, arg_name: str = "") -> typing.List[str]:
@@ -148,6 +170,7 @@ def get_module_info(module_name: str, is_entry_module: bool = False) -> ModuleIn
         loader = machinery.SourceFileLoader(fullname, source_module_path)
         spec = util.spec_from_file_location(fullname, source_module_path, loader=loader)
         module = util.module_from_spec(spec)
+        spec.loader.exec_module(module)
         module_info = ModuleInfo(fullname, module, is_package(module), source_module_path)
     else:
         try:
@@ -180,16 +203,14 @@ def get_module_varname(name: str, prefix: str) -> str:
     return f"{prefix}{name.replace('.', '_')}"
 
 
-def get_frozen_module_names(entry_module_name: str, hidden_imports: list[str], excludes: list[str]) -> list[str]:
+def analyze_module(analysis_info: ModuleAnalysisInfo, module_type: ModuleType) -> dict[str, modulefinder.Module]:
     """
-    Get all frozen module names
-    Args:
-        entry_module: A python module name or a single python_file
-        hidden_imports: hidden import module names
-        excludes: exclude module names
+    Get all [module_type] of modules used by [analysis_info]
     Returns:
-        All frozen module names
+        All module infos
     """
+    hidden_imports = analysis_info.hidden_imports[:]
+    excludes = analysis_info.excludes[:]
     is_win = sys.platform.startswith("win")
     if is_win:
         # copy from ${CPYTHON_SRC}/Tools/freeze/freeze.py
@@ -208,7 +229,7 @@ def get_frozen_module_names(entry_module_name: str, hidden_imports: list[str], e
     bootstrap_module_names += ["site", "warnings", "encodings.utf_8", "encodings.latin_1"]
     hidden_imports += bootstrap_module_names
 
-    module_info = get_module_info(entry_module_name, is_entry_module=True)
+    module_info = get_module_info(analysis_info.entry_module_name, is_entry_module=True)
     finder = modulefinder.ModuleFinder(excludes=excludes)
 
     for hidden_import_name in hidden_imports:
@@ -216,17 +237,30 @@ def get_frozen_module_names(entry_module_name: str, hidden_imports: list[str], e
 
     finder.run_script(module_info.origin)
     # finder.report()
-    module_names = sorted(finder.modules.keys())
-    frozen_module_names = []
-    for module_name in module_names:
-        module = finder.modules[module_name]
+    modules = {}
+    for module_name, module in finder.modules.items():
         if module_name in sys.builtin_module_names:
             continue
+        if module.__file__.endswith(tuple(machinery.SOURCE_SUFFIXES)) and module_type & ModuleType.SOURCE_MODULE:
+            modules[module_name] = module
+        if module.__file__.endswith(tuple(machinery.BYTECODE_SUFFIXES)) and module_type & ModuleType.BYTECODE_MODULE:
+            modules[module_name] = module
+        if module.__file__.endswith(tuple(machinery.EXTENSION_SUFFIXES)) and module_type & ModuleType.EXTENSION_MODULE:
+            modules[module_name] = module
+    return modules
+
+
+def get_frozen_module_names(analysis_info: ModuleAnalysisInfo) -> list[str]:
+    """
+    Get all frozen module names
+    Returns:
+        All frozen module names
+    """
+    modules = analyze_module(analysis_info, ModuleType.SOURCE_MODULE)
+    module_names = sorted(modules.keys())
+    frozen_module_names = []
+    for module_name in module_names:
         if module_name in OFFICIAL_FROZEN_MODULE_NAMES:
-            continue
-        if module.__file__.endswith(tuple(machinery.BYTECODE_SUFFIXES)):
-            continue
-        if module.__file__.endswith(tuple(machinery.EXTENSION_SUFFIXES)):
             continue
         frozen_module_names.append(module_name)
     return frozen_module_names
@@ -244,7 +278,8 @@ def print_frozen_header_file_names(entry_module_name: str, hidden_imports_arg: s
     """
     hidden_imports = get_list_arg(hidden_imports_arg, "--hidden-imports")
     excludes = get_list_arg(excludes_arg, "--excludes")
-    module_names = get_frozen_module_names(entry_module_name, hidden_imports, excludes)
+    analysis_info = ModuleAnalysisInfo(entry_module_name, hidden_imports, excludes)
+    module_names = get_frozen_module_names(analysis_info)
     headers = [FROZEN_MODULES_HEADER.replace("\\", "/")]
     for module_name in module_names:
         header = os.path.join(FROZEN_MODULE_DIR, f"{module_name}.h")
@@ -266,7 +301,8 @@ def make_freeze(freeze_module_exe: str, entry_module_name: str, hidden_imports_a
     clear_frozen_module_dir()
     hidden_imports = get_list_arg(hidden_imports_arg, "--hidden-imports")
     excludes = get_list_arg(excludes_arg, "--excludes")
-    module_names = get_frozen_module_names(entry_module_name, hidden_imports, excludes)
+    analysis_info = ModuleAnalysisInfo(entry_module_name, hidden_imports, excludes)
+    module_names = get_frozen_module_names(analysis_info)
     headers = []
     frozen_structs = []
     for module_name in module_names:

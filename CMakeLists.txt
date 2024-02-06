@@ -103,4 +103,12 @@ if(${WIN32})
   if(NOT NEED_CONSOLE)
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE 1)
   endif()
+  if(FREEZE_APPLICATION)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+      COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/scripts/assemble_application.py"
+      "${ENTRY_MODULE_NAME}" "--hidden-imports=${HIDDEN_IMPORTS}" "--excludes=${EXCLUDES}" "--binaries=$<TARGET_FILE:${PROJECT_NAME}>,$<TARGET_FILE:libpython3-shared>"
+      "--pyside6-modules=PySide6.QtWidgets"
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+  endif()
 endif()
