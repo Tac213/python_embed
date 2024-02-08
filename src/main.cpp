@@ -7,6 +7,7 @@
 #if defined(_MSC_VER)
 #    include <Windows.h>
 #endif
+#include <pybind11/embed.h>
 
 #if defined(FREEZE_APPLICATION)
 #    include <filesystem>
@@ -15,6 +16,71 @@
 
 #define STR_HELPER(x) #x
 #define STR(x)        STR_HELPER(x)
+
+namespace py = pybind11;
+
+class Pet
+{
+public:
+    explicit Pet(const std::string& name) :
+        name(name) {}
+    void               set_name(const std::string& in_name) { name = in_name; }
+    const std::string& get_name() const { return name; }
+    void               set_type(const std::string& type) { _type = type; }
+    const std::string& get_type() const { return _type; }
+
+    std::string name;
+
+private:
+    std::string _type;
+};
+
+class Dog : public Pet
+{
+public:
+    explicit Dog(const std::string& name) :
+        Pet(name) {}
+    std::string bark() const { return name + " woof!"; }
+};
+
+int add(int i, int j)
+{
+    return i + j;
+}
+
+int sub(int i, int j)
+{
+    return i - j;
+}
+
+PYBIND11_EMBEDDED_MODULE(emb, m)
+{
+    m.doc() = "This is the top embed module - emb";
+    // `m` is a `py::module_` which is used to bind functions and classes
+    m.def("add", &add);
+
+    auto m_a = m.def_submodule("module_a", "This is A.");
+    m_a.def("sub", &sub);
+
+    m.attr("the_answer") = 42;
+    py::object world     = py::cast("World");
+    m.attr("what")       = world;
+
+    py::class_<Pet>(m, "Pet")
+        .def(py::init<const std::string&>())
+        .def("set_name", &Pet::set_name)
+        .def("get_name", &Pet::get_name)
+        .def("__repr__",
+             [](const Pet& a) {
+                 return "<emb.Pet named '" + a.name + "'>";
+             })
+        .def_readonly("name", &Pet::name)
+        .def_property("type", &Pet::get_type, &Pet::set_type);
+
+    py::class_<Dog, Pet /* <------- specify C++ parent type */>(m, "Dog")
+        .def(py::init<const std::string&>())
+        .def("bark", &Dog::bark);
+}
 
 static int
 pymain_run_module(const wchar_t* modname, int set_argv0)
@@ -118,7 +184,7 @@ WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpCmdLine, int nShowCmd) // 
         }
     }
 #else  // FREEZE_APPLICATION
-    config.module_search_paths_set = 1; // sys.path will be: ['']
+    config.module_search_paths_set = 1;                                      // sys.path will be: ['']
 
     std::filesystem::path executable_path(argv[0]);
     auto                  executable_directory = executable_path.parent_path().wstring();

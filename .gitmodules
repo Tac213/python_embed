@@ -2,3 +2,7 @@
     path = thirdparty/python-cmake
     url = https://github.com/Tac213/python-cmake.git
     branch = main
+[submodule "thirdparty/pybind11"]
+	path = thirdparty/pybind11
+	url = ../../pybind/pybind11
+	branch = stable

@@ -8,3 +8,6 @@ if(NOT TARGET python)
     option(LOAD_NORMAL_EXTENSIONS_IN_DEBUG "" ON)
     add_subdirectory(python-cmake)
 endif()
+
+option(PYBIND11_NOPYTHON "" ON)
+add_subdirectory(pybind11)

@@ -80,6 +80,7 @@ endif()
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
   libpython-static
+  pybind11::headers
 )
 
 if(${WIN32})
