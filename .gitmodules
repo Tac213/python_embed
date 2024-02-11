@@ -1,6 +1,6 @@
 [submodule "thirdparty/python-cmake"]
     path = thirdparty/python-cmake
-    url = https://github.com/Tac213/python-cmake.git
+    url = ../python-cmake
     branch = main
 [submodule "thirdparty/pybind11"]
 	path = thirdparty/pybind11
