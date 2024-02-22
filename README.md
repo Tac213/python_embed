@@ -32,6 +32,14 @@ cmake --build .
 
 ```bash
 cmake -S . -B build/Frozen -G "Visual Studio 17 2022" -DNEED_CONSOLE=OFF -DFREEZE_APPLICATION=ON -DCMAKE_BUILD_TYPE:STRING=Release
+cmake --build build/Frozen --config Release  -- -maxCpuCount:20  # Set your cpu count at the last parameter to speed up
+```
+
+You can also use ninja as generator: (Ninja is always faster than MSBuild for some reasons.)
+
+```bash
+"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+cmake -S . -B build/Frozen -G "Ninja" -DNEED_CONSOLE=OFF -DFREEZE_APPLICATION=ON -DCMAKE_BUILD_TYPE:STRING=Release
 cmake --build build/Frozen --config Release
 ```
 

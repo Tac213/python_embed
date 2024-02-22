@@ -15,7 +15,8 @@ import dataclasses
 import subprocess
 import shutil
 
-ROOT_DIR = os.path.normpath(os.path.join(__file__, "..", ".."))
+# ROOT_DIR = os.path.normpath(os.path.join(__file__, "..", "..", ".."))
+ROOT_DIR = os.getcwd()
 FROZEN_MODULE_DIR = os.path.join(ROOT_DIR, "src", "frozen_modules")
 if not os.path.exists(FROZEN_MODULE_DIR):
     os.makedirs(FROZEN_MODULE_DIR)
@@ -128,6 +129,13 @@ def get_python_bootstrap_module_names() -> typing.List[str]:
     for official_frozen_module_name in OFFICIAL_FROZEN_MODULE_NAMES:
         if official_frozen_module_name in bootstrap_module_names:
             bootstrap_module_names.remove(official_frozen_module_name)
+    editable_finder_name = None
+    for name in bootstrap_module_names:
+        if name.startswith("__editable__"):
+            editable_finder_name = name
+            break
+    if editable_finder_name is not None:
+        bootstrap_module_names.remove(editable_finder_name)
     return bootstrap_module_names
 
 
@@ -155,6 +163,35 @@ def is_package(module: types.ModuleType) -> bool:
     return any(file_name == "__init__" + suffix for suffix in machinery.SOURCE_SUFFIXES)
 
 
+def create_module(fullname: str) -> types.ModuleType:
+    """
+    Create a module object but do not exec it
+    Only external modules (.py .pyc .pyd .pyw) will be found
+    Args:
+        fullname: module fullname
+    Returns:
+        module object
+    """
+    if fullname in sys.modules:
+        return sys.modules[fullname]
+    path_list = None
+    parent_module_name = fullname.rpartition(".")[0]
+    if parent_module_name:
+        parent_module = create_module(parent_module_name)
+        path_list = parent_module.__path__
+    spec = None
+    for finder in sys.meta_path:
+        if finder in (machinery.BuiltinImporter, machinery.FrozenImporter):
+            continue
+        spec = finder.find_spec(fullname, path_list)
+        if spec:
+            break
+    if spec is None:
+        raise ModuleNotFoundError(f"No module named {fullname}", name=fullname)
+    module = util.module_from_spec(spec)
+    return module
+
+
 def get_module_info(module_name: str, is_entry_module: bool = False) -> ModuleInfo:
     """
     Get module info by module name
@@ -174,13 +211,13 @@ def get_module_info(module_name: str, is_entry_module: bool = False) -> ModuleIn
         module_info = ModuleInfo(fullname, module, is_package(module), source_module_path)
     else:
         try:
-            module = importlib.import_module(module_name)
+            module = create_module(module_name)
         except ModuleNotFoundError as e:
             usage(e.msg)
         if is_package(module) and is_entry_module:
             module_name = f"{module_name}.__main__"
             try:
-                module = importlib.import_module(module_name)
+                module = create_module(module_name)
             except ModuleNotFoundError as e:
                 usage(e.msg)
             source_module_path = module.__spec__.origin
@@ -230,12 +267,25 @@ def analyze_module(analysis_info: ModuleAnalysisInfo, module_type: ModuleType) -
     hidden_imports += bootstrap_module_names
 
     module_info = get_module_info(analysis_info.entry_module_name, is_entry_module=True)
-    finder = modulefinder.ModuleFinder(excludes=excludes)
+    additional_path = None
+    path = sys.path[:]
+    for entry in path:
+        if not entry.startswith("__editable__"):
+            continue
+        module_name, _, _ = entry.rpartition(".")
+        module_name = module_name.replace(".", "_").replace("-", "_")
+        editable_finder_module = importlib.import_module(module_name)
+        additional_path = editable_finder_module.MAPPING.get(analysis_info.entry_module_name)
+        additional_path = os.path.dirname(additional_path)
+    if additional_path is not None:
+        path.append(additional_path)
+    finder = modulefinder.ModuleFinder(path=path, excludes=excludes)
 
     for hidden_import_name in hidden_imports:
         finder.import_hook(hidden_import_name)
 
     finder.run_script(module_info.origin)
+    # DEBUG: Uncomment the following line to debug
     # finder.report()
     modules = {}
     for module_name, module in finder.modules.items():
