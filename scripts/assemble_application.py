@@ -214,6 +214,50 @@ def collect_needed_qtqml_files(dir_path: str, qt_quick_control_styles: None | li
     return result
 
 
+def collect_qt_webengine_extra_files() -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """
+    Collect Qt WebEngine extra files:
+    QtWebEngineProcess
+    resources
+    translations
+    Returns:
+        tuple: binaries, datas
+    """
+    binaries = []
+    datas = []
+    locales = "qtwebengine_locales"
+    resources = "resources"
+    # Translations
+    locales_dir = os.path.join(qt.pyside6_library_info.location["TranslationsPath"], locales)
+    for root, _, file_names in os.walk(locales_dir):
+        for file_name in file_names:
+            fullpath = os.path.join(root, file_name)
+            datas.append(
+                (
+                    fullpath,
+                    os.path.join(qt.pyside6_library_info.qt_rel_dir, "translations", locales),
+                )
+            )
+    # Resources
+    resources_dir = os.path.join(qt.pyside6_library_info.location["DataPath"], resources)
+    for root, _, file_names in os.walk(resources_dir):
+        for file_name in file_names:
+            fullpath = os.path.join(root, file_name)
+            datas.append(
+                (
+                    fullpath,
+                    os.path.join(qt.pyside6_library_info.qt_rel_dir, resources),
+                )
+            )
+    # Helper process executable (QtWebEngineProcess), located in ``LibraryExecutablesPath``.
+    dest = os.path.join(
+        qt.pyside6_library_info.qt_rel_dir,
+        os.path.relpath(qt.pyside6_library_info.location["LibraryExecutablesPath"], qt.pyside6_library_info.location["PrefixPath"]),
+    )
+    binaries.append((os.path.join(qt.pyside6_library_info.location["LibraryExecutablesPath"], "QtWebEngineProcess.exe"), dest))
+    return binaries, datas
+
+
 def normalize_pyi_toc(entry: str, typecode: str, level: int = 1, dest: None | str = None) -> tuple[str, str, str]:
     """
     Return PyInstaller TOC with the input string list
@@ -283,14 +327,24 @@ def process_pyside6_files(assemble_info: AssembleInfo) -> set[str, str]:
     # Filter binaries and datas that are not needed
     result_binaries = []
     result_datas = []
+    used_web_engine = False
     for src, dest_dir in binaries:
+        src = os.path.normpath(src)
         if src in dont_need_binaires:
             continue
         result_binaries.append((src, dest_dir))
+        if "WebEngine" in src:
+            used_web_engine = True
     for src, dest_dir in datas:
+        src = os.path.normpath(src)
         if src in dont_need_datas:
             continue
         result_datas.append((src, dest_dir))
+
+    if used_web_engine:
+        web_engine_binaries, web_engine_datas = collect_qt_webengine_extra_files()
+        result_binaries.extend(web_engine_binaries)
+        result_datas.extend(web_engine_datas)
 
     # Copy all Qt binaries and datas to the output directory
     for src, dest_dir in itertools.chain(result_binaries, result_datas):
