@@ -3,8 +3,6 @@ project(python_embed)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_subdirectory(thirdparty)
-
 option(NEED_CONSOLE "Whether to build a console application." ON)
 option(FREEZE_APPLICATION "Whether to freeze the python application." OFF)
 
@@ -17,6 +15,8 @@ else()
     ${CMAKE_SOURCE_DIR}/.venv/bin/python
   )
 endif()
+
+add_subdirectory(thirdparty)
 
 set(SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
